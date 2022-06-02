@@ -3,24 +3,27 @@
 import csv
 import gc
 import sys
-# import logging
 import datetime as dt
 
 from csv import DictReader
 from typing import List, Callable, Optional
-from models import Top2VecW
 from functools import partial
-from preproc import Preprocessor, LangEnum
+from src.preproc import Preprocessor, LangEnum
+from src.models import Top2VecW
 from tqdm.notebook import tqdm
-from transformers import AutoTokenizer, T5ForConditionalGeneration
 
-# logging.disable(logging.WARNING)
+if len(sys.argv) != 3:
+    print('USAGE: demo.py DATASET_PATH OUTPUT_DIR', file=sys.stderr)
+    exit(1)
 
-DATASET_DIR = "/run/media/mkls/Media/Загрузки"
-output_dir = "/run/media/mkls/Media/ml/coursework2/events-topics/"
+DATASET_PATH = sys.argv[1]
+OUTPUT_DIR = sys.argv[2]
 
 
 class CsvDataset:
+    """
+    Dataloader that yields batches from csv using tumbling time window
+    """
 
     def __init__(self, fname: str):
         self.fname = fname
@@ -41,8 +44,14 @@ class CsvDataset:
         assert (time_window is not None and time_col is not None
                 and time_format is not None) or batch_size != 0
 
+        if filter_func is None:
+            # Use a stub
+            filter_func = (lambda _: True)
+
         with open(self.fname, "r") as fd:
+            to_yield = False
             reader = DictReader(fd)
+
             for line in reader:
                 cur_time = dt.datetime.strptime(line[time_col],
                                                 time_format).date()
@@ -51,48 +60,34 @@ class CsvDataset:
                     batch = []
                     start_time = cur_time
 
-                if len(batch) > 0 and (
-                    (time_window is not None
-                     and cur_time > start_time + time_window) or
-                    (batch_size != 0 and len(batch) == batch_size) or
-                    (max_size > 0 and len(batch) == max_size)):
+                if len(batch) > 0:
+                    # Split for readability
+                    if time_window is not None and \
+                            cur_time > start_time + time_window:
+                        to_yield = True
+                    elif batch_size != 0 and len(batch) == batch_size:
+                        to_yield = True
+                    elif max_size > 0 and len(batch == max_size):
+                        to_yield = True
+
+                if to_yield:
                     start_time = None
+                    to_yield = False
                     yield batch
                 else:
-                    if len(batch) > 0 and line[text_column] != batch[-1][
-                            text_column] or len(batch) == 0:
-                        if filter_func is not None and filter_func(
-                                line) or filter_func is None:
+                    # Filter out duplicates
+                    last_text = batch[-1][text_column]
+                    cur_text = line[text_column]
+
+                    strings_equal = last_text == cur_text
+
+                    if len(batch) > 0 and strings_equal or len(batch) == 0:
+                        if filter_func(line):
                             batch.append({key: line[key] for key in columns})
+
         if len(batch) > 0 and not drop_last:
             yield batch
         raise StopIteration
-
-
-def summarize(text: str, model_name: str):
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = T5ForConditionalGeneration.from_pretrained(model_name)
-    input_ids = tokenizer([text],
-                          add_special_tokens=True,
-                          padding="max_length",
-                          truncation=True,
-                          max_length=200,
-                          return_tensors="pt")["input_ids"]
-
-    output_ids = model.generate(input_ids=input_ids,
-                                no_repeat_ngram_size=3,
-                                max_length=128,
-                                num_beams=20,
-                                early_stopping=True)[0]
-
-    summary = tokenizer.decode(output_ids, skip_special_tokens=True)
-    return summary
-
-
-# dataset = CsvDataset(DATASET_DIR + '/lenta-ru-news.csv')
-dataset = CsvDataset(DATASET_DIR + '/aggr_articles_consolidated_2010-2021.csv')
-
-preprocessor = Preprocessor(language=LangEnum.RU, tokenize_ents=False)
 
 
 def crutch_for_top2vec(doc):
@@ -104,6 +99,9 @@ def filter_func(x: dict, dt_col: str, time_format: str, year: int) -> bool:
     return cur_time.year == year
 
 
+dataset = CsvDataset(DATASET_PATH)
+preprocessor = Preprocessor(language=LangEnum.RU, tokenize_ents=False)
+
 time_format = "%Y-%m-%d %H:%M:%S"
 ds_generator = dataset(time_window=dt.timedelta(days=2),
                        time_col="date",
@@ -114,10 +112,8 @@ ds_generator = dataset(time_window=dt.timedelta(days=2),
                                            dt_col='date',
                                            time_format=time_format,
                                            year=2018))
-# model_name = "IlyaGusev/rut5_base_headline_gen_telegram"
-# model_name = "IlyaGusev/rut5_base_sum_gazeta"
 
-with open(output_dir + 'result.csv', 'a') as of:
+with open(OUTPUT_DIR + 'result.csv', 'a') as of:
     writer = csv.writer(of)
     # writer.writerow(['batch_id', 'refdoc_id', 'text', 'date'])
 
@@ -136,9 +132,8 @@ with open(output_dir + 'result.csv', 'a') as of:
         try:
             m = Top2VecW(
                 documents=texts,
-                # embedding_model='doc2vec',
-                embedding_model='universal-sentence-encoder-multilingual',
-                # embedding_model='paraphrase-multilingual-MiniLM-L12-v2',
+                embedding_model='doc2vec',
+                # embedding_model='universal-sentence-encoder-multilingual',
                 workers=12,
                 tokenizer=crutch_for_top2vec)
 
