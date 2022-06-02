@@ -7,8 +7,9 @@ import sys
 import datetime as dt
 
 from csv import DictReader
-from typing import List
+from typing import List, Callable, Optional
 from models import Top2VecW
+from functools import partial
 from preproc import Preprocessor, LangEnum
 from tqdm.notebook import tqdm
 from transformers import AutoTokenizer, T5ForConditionalGeneration
@@ -16,6 +17,7 @@ from transformers import AutoTokenizer, T5ForConditionalGeneration
 # logging.disable(logging.WARNING)
 
 DATASET_DIR = "/run/media/mkls/Media/Загрузки"
+output_dir = "/run/media/mkls/Media/ml/coursework2/events-topics/"
 
 
 class CsvDataset:
@@ -26,12 +28,13 @@ class CsvDataset:
     def __call__(self,
                  batch_size: int = 0,
                  time_col: str = "date",
-                 time_window: dt.timedelta = None,
-                 columns: List[str] = None,
-                 time_format: str = None,
+                 time_window: Optional[dt.timedelta] = None,
+                 columns: Optional[List[str]] = None,
+                 time_format: Optional[str] = None,
                  drop_last: bool = True,
                  text_column: str = "text",
-                 max_size: int = 0):
+                 max_size: int = 0,
+                 filter_func: Optional[Callable[dict, bool]] = None):
         batch = []
         start_time = None
 
@@ -48,16 +51,19 @@ class CsvDataset:
                     batch = []
                     start_time = cur_time
 
-                if (time_window is not None
-                        and cur_time > start_time + time_window) or (
-                            batch_size != 0 and len(batch) == batch_size) or (
-                                max_size > 0 and len(batch) == max_size):
+                if len(batch) > 0 and (
+                    (time_window is not None
+                     and cur_time > start_time + time_window) or
+                    (batch_size != 0 and len(batch) == batch_size) or
+                    (max_size > 0 and len(batch) == max_size)):
                     start_time = None
                     yield batch
                 else:
                     if len(batch) > 0 and line[text_column] != batch[-1][
                             text_column] or len(batch) == 0:
-                        batch.append({key: line[key] for key in columns})
+                        if filter_func is not None and filter_func(
+                                line) or filter_func is None:
+                            batch.append({key: line[key] for key in columns})
         if len(batch) > 0 and not drop_last:
             yield batch
         raise StopIteration
@@ -93,13 +99,21 @@ def crutch_for_top2vec(doc):
     return doc.split()
 
 
+def filter_func(x: dict, dt_col: str, time_format: str, year: int) -> bool:
+    cur_time = dt.datetime.strptime(x[dt_col], time_format).date()
+    return cur_time.year == year
+
+
+time_format = "%Y-%m-%d %H:%M:%S"
 ds_generator = dataset(time_window=dt.timedelta(days=2),
                        time_col="date",
-                       columns=['title', 'text', 'date'],
-                       time_format="%Y-%m-%d %H:%M:%S",
-                       max_size=5000)
-
-output_dir = "/run/media/mkls/Media/ml/coursework2/events-topics/"
+                       columns=['title', 'id', 'text', 'date'],
+                       time_format=time_format,
+                       max_size=10000,
+                       filter_func=partial(filter_func,
+                                           dt_col='date',
+                                           time_format=time_format,
+                                           year=2018))
 # model_name = "IlyaGusev/rut5_base_headline_gen_telegram"
 # model_name = "IlyaGusev/rut5_base_sum_gazeta"
 
@@ -134,12 +148,14 @@ with open(output_dir + 'result.csv', 'a') as of:
                 for doc, score, doc_id in zip(docs, scores, ids):
                     # print(frame)
                     writer.writerow([
-                        f"{i}", f"{doc_id}", frame[doc_id],
+                        f"{i}", batch[doc_id]['id'], frame[doc_id],
                         batch[doc_id]['date']
                     ])
                     # event_docs.append(doc)
                     # event_ids.append(doc_id)
             # models.append(top2vec)
+            print(len(batch))
         except Exception as e:
-            print(f'Failed to get topics: {e}', file=sys.stderr)
+            print(f'Failed to get topics: {e}, len(batch) = {len(batch)}',
+                  file=sys.stderr)
             continue
