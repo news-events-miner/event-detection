@@ -6,9 +6,9 @@ import sys
 import datetime as dt
 
 from functools import partial
-from src.dataset import CsvDataset
-from src.preproc import Preprocessor, LangEnum
-from src.models import Top2VecW
+from event_detection.dataset import CsvDataset
+from event_detection.preproc import Preprocessor, LangEnum
+from event_detection.models import Top2VecW
 from tqdm.notebook import tqdm
 
 if len(sys.argv) != 3:
