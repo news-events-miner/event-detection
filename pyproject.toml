@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "event-detection"
+version = "0.1.0"
+description = "Event detection in news streams using Top2Vec"
+authors = ["Mikhail Elenskii <elenskii-mikhail@outlook.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+numpy = "^1.22.4"
+wordcloud = "^1.8.1"
+scipy = "^1.8.1"
+top2vec = "^1.0.27"
+spacy = "^3.3.0"
+ru-core-news-md = {url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.3.0/ru_core_news_md-3.3.0-py3-none-any.whl"}
+
+[tool.poetry.dev-dependencies]
+jupyter = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
