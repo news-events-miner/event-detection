@@ -1153,6 +1153,7 @@ spacy = ">=3.3.0.dev0,<3.4.0"
 [package.source]
 type = "url"
 url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_md-3.3.0/ru_core_news_md-3.3.0-py3-none-any.whl"
+
 [[package]]
 name = "scikit-learn"
 version = "1.1.1"
@@ -1608,7 +1609,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.11"
-content-hash = "756c6dd636f2a6d8de035eef3e417d010066bc9b191d4e145a4141d4e5ba0a83"
+content-hash = "f3972d2ed212d0eb5e1642f2086a065dbffe3ce0c3e393cd3de38dc5d5aacaab"
 
 [metadata.files]
 appnope = [
