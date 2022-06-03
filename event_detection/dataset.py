@@ -44,13 +44,13 @@ class CsvDataset:
                     start_time = cur_time
 
                 if len(batch) > 0:
+                    window_edge = time_window is not None and\
+                            cur_time > start_time + time_window
+                    batch_end = batch_size != 0 and len(batch) == batch_size
+                    limit = max_size > 0 and len(batch) == max_size
+
                     # Split for readability
-                    if time_window is not None and \
-                            cur_time > start_time + time_window:
-                        to_yield = True
-                    elif batch_size != 0 and len(batch) == batch_size:
-                        to_yield = True
-                    elif max_size > 0 and len(batch) == max_size:
+                    if window_edge or batch_end or limit:
                         to_yield = True
 
                 if to_yield:

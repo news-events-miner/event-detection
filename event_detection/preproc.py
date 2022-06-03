@@ -77,41 +77,7 @@ class Preprocessor:
         if stop_words is not None:
             self.update_stopwords(stop_words)
 
-        # @spacy.Language.component(name='custom_preproc')
-        # def lemmatize(doc: Doc):
-        #     tokens = [
-        #         token for token in doc
-        #         if not (token.is_stop or token.is_punct or token.like_email
-        #                 or token.like_url or token.is_space
-        #                 or token.is_currency or token.like_num or
-        #                 token.lemma_.lower() in self.nlp.Defaults.stop_words)
-        #     ]
-        #     res_tokens = []
-
-        #     if not self.tokenize_ents and len(doc.ents) > 0:
-        #         merged_tokens = ""
-
-        #         for token in tokens:
-        #             if token.ent_iob == 3:  # Beggining of the entity
-        #                 # token = "-".join(token.lemma_.lower().split('-'))
-        #                 merged_tokens = token.lemma_.lower().strip() + "_"
-        #             elif token.ent_iob == 1:  # Inside the entity
-        #                 merged_tokens += token.lemma_.lower().strip() + "_"
-        #             elif merged_tokens == "":
-        #                 res_tokens.append(token.lemma_.lower().strip())
-        #             else:
-        #                 res_tokens.append(merged_tokens[:-1])
-        #                 merged_tokens = ""
-        #     else:
-        #         res_tokens = [t.lemma_.lower().strip() for t in tokens]
-
-        #     print(len(doc.ents), len(res_tokens))
-        #     new_doc = Doc(vocab=doc.vocab, words=res_tokens, ents=doc.ents)
-        #     return new_doc
-
         self.nlp.add_pipe('merge_entities', last=True)
-        # Add stop words removing to spacy pipeline
-        # self.nlp.add_pipe('custom_preproc', last=True)
 
     def update_stopwords(self, stop_words: Iterable[str]) -> None:
         """
