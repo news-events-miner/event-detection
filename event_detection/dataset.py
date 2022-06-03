@@ -50,7 +50,7 @@ class CsvDataset:
                         to_yield = True
                     elif batch_size != 0 and len(batch) == batch_size:
                         to_yield = True
-                    elif max_size > 0 and len(batch == max_size):
+                    elif max_size > 0 and len(batch) == max_size:
                         to_yield = True
 
                 if to_yield:
@@ -59,12 +59,15 @@ class CsvDataset:
                     yield batch
                 else:
                     # Filter out duplicates
-                    last_text = batch[-1][text_column]
-                    cur_text = line[text_column]
+                    if len(batch) > 0:
+                        last_text = batch[-1][text_column]
+                        cur_text = line[text_column]
 
-                    strings_equal = last_text == cur_text
+                        strings_equal = last_text == cur_text
+                    else:
+                        strings_equal = False
 
-                    if len(batch) > 0 and strings_equal or len(batch) == 0:
+                    if len(batch) > 0 and not strings_equal or len(batch) == 0:
                         if filter_func(line):
                             batch.append({key: line[key] for key in columns})
 

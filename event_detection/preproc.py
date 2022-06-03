@@ -6,6 +6,7 @@ from spacy.language import Language
 from spacy.pipe_analysis import Doc
 from spacy.util import compile_infix_regex
 from gensim.corpora.dictionary import Dictionary
+from string import whitespace
 from itertools import tee
 from enum import Enum
 from os import cpu_count
@@ -20,17 +21,31 @@ class LangEnum(Enum):
     RU = 1
 
 
+@spacy.Language.component(name='merge_entities')
+def merge_entities(doc):
+    with doc.retokenize() as retokenizer:
+        for ent in doc.ents:
+            retokenizer.merge(doc[ent.start:ent.end],
+                              attrs={
+                                  'LEMMA':
+                                  str(doc[ent.start:ent.end]).replace(
+                                      whitespace, '_')
+                              })
+    return doc
+
+
 class Preprocessor:
     """
     Use this class to encapsulate Spacy models, Gensim stuff and everything
     else needed for text preprocessing.
     """
 
-    def __init__(self, language: LangEnum = 0,
+    def __init__(self,
+                 language: LangEnum = 0,
                  stop_words: Iterable[str] = None,
                  tokenize_ents: bool = True,
                  workers: int = cpu_count()):
-        # Preload ready to use spacy language model (tokenizer, lemmatizer, etc)
+        # Preload ready to use spacy model (tokenizer, lemmatizer, etc)
         if language == LangEnum.EN:
             self.nlp: Language = spacy.load('en_core_web_sm')
         elif language == LangEnum.RU:
@@ -41,71 +56,62 @@ class Preprocessor:
 
         # Wheter or not to tokenize detected named entities
         self.tokenize_ents = tokenize_ents
-        
+
         self.workers = workers
-        
+
         # Modify tokenizer infix patterns
         infixes = (
-            LIST_ELLIPSES
-            + LIST_ICONS
-            + [
+            LIST_ELLIPSES + LIST_ICONS + [
                 r"(?<=[0-9])[+\-\*^](?=[0-9-])",
                 r"(?<=[{al}{q}])\.(?=[{au}{q}])".format(
-                    al=ALPHA_LOWER, au=ALPHA_UPPER, q=CONCAT_QUOTES
-                ),
+                    al=ALPHA_LOWER, au=ALPHA_UPPER, q=CONCAT_QUOTES),
                 r"(?<=[{a}]),(?=[{a}])".format(a=ALPHA),
                 # r"(?<=[{a}])(?:{h})(?=[{a}])".format(a=ALPHA, h=HYPHENS),
                 r"(?<=[{a}0-9])[:<>=/](?=[{a}])".format(a=ALPHA),
-            ]
-        )
-        
+            ])
+
         infix_re = compile_infix_regex(infixes)
         self.nlp.tokenizer.infix_finditer = infix_re.finditer
-        
+
         # Update the built-in stopwords list
         if stop_words is not None:
             self.update_stopwords(stop_words)
 
-        @spacy.Language.component(name='custom_preproc')
-        def lemmatize(doc: Doc):
-            tokens = [token for token in doc
-                      if not (token.is_stop or
-                              token.is_punct or
-                              token.like_email or
-                              token.like_url or
-                              token.is_space or
-                              token.is_currency or
-                              token.like_num or
-                              token.lemma_.lower() in
-                              self.nlp.Defaults.stop_words)]
-            res_tokens = []
-            
-            if not self.tokenize_ents and len(doc.ents) > 0:
-                merged_tokens = ""
-                
-                for token in tokens:
-                    if token.ent_iob == 3: # Beggining of the entity
-                        # token = "-".join(token.lemma_.lower().split('-'))
-                        merged_tokens = token.lemma_.lower().strip() + "_"
-                    elif token.ent_iob == 1: # Inside the entity
-                        merged_tokens += token.lemma_.lower().strip() + "_"
-                    elif merged_tokens == "":
-                        res_tokens.append(token.lemma_.lower().strip())
-                    else:
-                        res_tokens.append(merged_tokens[:-1])
-                        merged_tokens = ""
-            else:
-                res_tokens = [t.lemma_.lower().strip() for t in tokens]
+        # @spacy.Language.component(name='custom_preproc')
+        # def lemmatize(doc: Doc):
+        #     tokens = [
+        #         token for token in doc
+        #         if not (token.is_stop or token.is_punct or token.like_email
+        #                 or token.like_url or token.is_space
+        #                 or token.is_currency or token.like_num or
+        #                 token.lemma_.lower() in self.nlp.Defaults.stop_words)
+        #     ]
+        #     res_tokens = []
 
-            new_doc = Doc(vocab=doc.vocab,
-                          words=res_tokens)
-            return new_doc
+        #     if not self.tokenize_ents and len(doc.ents) > 0:
+        #         merged_tokens = ""
 
+        #         for token in tokens:
+        #             if token.ent_iob == 3:  # Beggining of the entity
+        #                 # token = "-".join(token.lemma_.lower().split('-'))
+        #                 merged_tokens = token.lemma_.lower().strip() + "_"
+        #             elif token.ent_iob == 1:  # Inside the entity
+        #                 merged_tokens += token.lemma_.lower().strip() + "_"
+        #             elif merged_tokens == "":
+        #                 res_tokens.append(token.lemma_.lower().strip())
+        #             else:
+        #                 res_tokens.append(merged_tokens[:-1])
+        #                 merged_tokens = ""
+        #     else:
+        #         res_tokens = [t.lemma_.lower().strip() for t in tokens]
+
+        #     print(len(doc.ents), len(res_tokens))
+        #     new_doc = Doc(vocab=doc.vocab, words=res_tokens, ents=doc.ents)
+        #     return new_doc
+
+        self.nlp.add_pipe('merge_entities', last=True)
         # Add stop words removing to spacy pipeline
-        self.nlp.add_pipe(
-            'custom_preproc',
-            last=True
-        )
+        # self.nlp.add_pipe('custom_preproc', last=True)
 
     def update_stopwords(self, stop_words: Iterable[str]) -> None:
         """
@@ -131,10 +137,10 @@ class Preprocessor:
         """
         docs = self.__get_preprocessed_docs__(data)
         docs, docs_iter_copy = tee(docs)
-        return docs, Dictionary(map(lambda x: [y.text for y in x], docs_iter_copy))
+        return docs, Dictionary(
+            map(lambda x: [y.text for y in x], docs_iter_copy))
 
-    def __get_preprocessed_docs__(self,
-                                  data: Iterable[str]):
+    def __get_preprocessed_docs__(self, data: Iterable[str]):
         """
         Helper function to generate new docs using spacy Language.pipe()
 

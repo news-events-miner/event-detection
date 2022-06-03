@@ -8,15 +8,16 @@ import datetime as dt
 from functools import partial
 from event_detection.dataset import CsvDataset
 from event_detection.preproc import Preprocessor, LangEnum
-from event_detection.models import Top2VecW
+# from event_detection.models import Top2VecW
+from event_detection.extractor import EventExtractor
 from tqdm.notebook import tqdm
 
 if len(sys.argv) != 3:
-    print('USAGE: demo.py DATASET_PATH OUTPUT_DIR', file=sys.stderr)
+    print('USAGE: demo.py DATASET_PATH OUTPUT_PATH', file=sys.stderr)
     exit(1)
 
 DATASET_PATH = sys.argv[1]
-OUTPUT_DIR = sys.argv[2]
+OUTPUT_PATH = sys.argv[2]
 
 
 def crutch_for_top2vec(doc):
@@ -36,13 +37,15 @@ ds_generator = dataset(time_window=dt.timedelta(days=2),
                        time_col="date",
                        columns=['title', 'id', 'text', 'date'],
                        time_format=time_format,
-                       max_size=10000,
+                       max_size=1000,
                        filter_func=partial(filter_func,
                                            dt_col='date',
                                            time_format=time_format,
-                                           year=2018))
+                                           year=2015))
 
-with open(OUTPUT_DIR + 'result.csv', 'a') as of:
+extractor = EventExtractor(embedding_model='doc2vec')
+
+with open(OUTPUT_PATH, 'w') as of:
     writer = csv.writer(of)
     # writer.writerow(['batch_id', 'refdoc_id', 'text', 'date'])
 
@@ -54,31 +57,38 @@ with open(OUTPUT_DIR + 'result.csv', 'a') as of:
         # event_docs.append([])
         # event_ids.append([])
 
-        frame = list(map(lambda x: x['title'] + ' ' + x['text'], batch))
-        doc_iter, _ = preprocessor.preprocess_texts(frame)
-        texts = list(map(str, doc_iter))
+        # frame = list(map(lambda x: x['title'] + ' ' + x['text'], batch))
+        for doc in batch:
+            doc['text'] = doc['title'] + '. ' + doc['text']
+            doc.pop('title', None)
 
         try:
-            m = Top2VecW(
-                documents=texts,
-                embedding_model='doc2vec',
-                # embedding_model='universal-sentence-encoder-multilingual',
-                workers=12,
-                tokenizer=crutch_for_top2vec)
+            events = extractor.extract_events(batch, num_workers=6)
+            print(events)
 
-            for j in range(m.__model__.get_num_topics()):
-                docs, scores, ids = m.__model__.search_documents_by_topic(
-                    topic_num=j, num_docs=1)
-                for doc, score, doc_id in zip(docs, scores, ids):
-                    # print(frame)
-                    writer.writerow([
-                        f"{i}", batch[doc_id]['id'], frame[doc_id],
-                        batch[doc_id]['date']
-                    ])
-                    # event_docs.append(doc)
-                    # event_ids.append(doc_id)
-            # models.append(top2vec)
-            print(len(batch))
+        # doc_iter, _ = preprocessor.preprocess_texts(frame)
+        # texts = list(map(str, doc_iter))
+
+        # m = Top2VecW(
+        #     documents=texts,
+        #     embedding_model='doc2vec',
+        #     # embedding_model='universal-sentence-encoder-multilingual',
+        #     workers=12,
+        #     tokenizer=crutch_for_top2vec)
+
+        # for j in range(m.__model__.get_num_topics()):
+        #     docs, scores, ids = m.__model__.search_documents_by_topic(
+        #         topic_num=j, num_docs=1)
+        #     for doc, score, doc_id in zip(docs, scores, ids):
+        #         # print(frame)
+        #         writer.writerow([
+        #             f"{i}", batch[doc_id]['id'], frame[doc_id],
+        #             batch[doc_id]['date']
+        #         ])
+        #         # event_docs.append(doc)
+        #         # event_ids.append(doc_id)
+        # # models.append(top2vec)
+        # print(len(batch))
         except Exception as e:
             print(f'Failed to get topics: {e}, len(batch) = {len(batch)}',
                   file=sys.stderr)
