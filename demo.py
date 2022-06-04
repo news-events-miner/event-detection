@@ -9,6 +9,7 @@ from functools import partial
 from event_detection.dataset import CsvDataset
 from event_detection.preproc import Preprocessor, LangEnum
 from event_detection.extractor import EventExtractor
+from pprint import pprint
 from tqdm.notebook import tqdm
 
 if len(sys.argv) != 3:
@@ -59,7 +60,7 @@ with open(OUTPUT_PATH, 'w') as of:
 
         try:
             events = extractor.extract_events(batch, num_workers=6)
-            print(events)
+            pprint(events)
 
         except Exception as e:
             print(f'Failed to get topics: {e}, len(batch) = {len(batch)}',
