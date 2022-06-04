@@ -1,7 +1,6 @@
 import datetime as dt
 from .models import Top2VecW
 from .preproc import Preprocessor, LangEnum
-from itertools import tee
 from typing import Callable, Optional, List, Union
 
 
@@ -17,12 +16,32 @@ class EventExtractor:
                  tokenize_ents: Optional[bool] = False,
                  tokenizer: Optional[Callable[str, List[str]]] = None):
         self.embedding_model = embedding_model
+        self.language = lang
         self.preproc = Preprocessor(language=lang, tokenize_ents=tokenize_ents)
+        self.tokenize_ents = tokenize_ents
 
         if tokenizer is None:
             # Stub for convenience
             tokenizer = (lambda x: x.split())
         self.tokenizer = tokenizer
+
+    def __getstate__(self):
+        attrs = {
+            'embedding_model': self.embedding_model,
+            'language': self.language,
+            'tokenizer': self.tokenizer,
+            'tokenize_ents': self.tokenize_ents,
+        }
+        return attrs
+
+    def __setstate__(self, state):
+        self.embedding_model = state.embedding_model
+        self.tokenizer = state.tokenizer
+        self.language = state.language
+        self.tokenize_ents = state.tokenize_ents
+
+        self.preproc = Preprocessor(language=self.language,
+                                    tokenize_ents=self.tokenize_ents)
 
     def extract_events(self,
                        documents: List[dict[str, Union[int, dt.date, str]]],
@@ -51,23 +70,30 @@ class EventExtractor:
 
             events.append({
                 'date': None,
-                'doc_ids': {},
+                'doc_ids': [],
+                'doc_scores': [],
+                'doc_texts': [],
                 'place': None,
-                'keywords': {}
+                'keywords': [],
+                'kw_scores': [],
             })
 
+            first = True
             for score, doc_id in zip(scores, ids):
-                events[j]['doc_ids'][doc_id] = {
-                    'score': score,
-                    'text': documents[doc_id]['text']
-                }
+                if first:
+                    first = False
+                    events[j]['date'] = documents[doc_id]['date']
+                events[j]['doc_ids'].append(int(doc_id))
+                events[j]['doc_scores'].append(float(score))
+                events[j]['doc_texts'].append(str(documents[doc_id]['text']))
 
         topic_words, topic_scores, nums = model.__model__.get_topics(
             max_topics)
 
         for topic_id in nums:
             for words, scores in zip(topic_words, topic_scores):
-                for word, score in zip(words, scores):
-                    events[topic_id]['keywords'][word] = score
+                for word, score in zip(words[topic_id], scores[topic_id]):
+                    events[topic_id]['keywords'].append(str(word))
+                    events[topic_id]['kw_scores'].append(float(score))
 
         return events
