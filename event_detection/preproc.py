@@ -1,5 +1,5 @@
 import spacy
-from spacy.tokenizer import Tokenizer
+import re
 from spacy.lang.char_classes import ALPHA, ALPHA_LOWER, ALPHA_UPPER
 from spacy.lang.char_classes import CONCAT_QUOTES, LIST_ELLIPSES, LIST_ICONS
 from spacy.language import Language
@@ -25,12 +25,9 @@ class LangEnum(Enum):
 def merge_entities(doc):
     with doc.retokenize() as retokenizer:
         for ent in doc.ents:
-            retokenizer.merge(doc[ent.start:ent.end],
-                              attrs={
-                                  'LEMMA':
-                                  str(doc[ent.start:ent.end]).replace(
-                                      whitespace, '_')
-                              })
+            retokenizer.merge(
+                doc[ent.start:ent.end],
+                attrs={'LEMMA': re.sub(r'\s+', '_', str(ent.lemma_))})
     return doc
 
 

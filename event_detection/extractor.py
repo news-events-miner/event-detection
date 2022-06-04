@@ -66,8 +66,6 @@ class EventExtractor:
             max_topics)
 
         for topic_id in nums:
-            print(f'topic_id is {topic_id}')
-
             for words, scores in zip(topic_words, topic_scores):
                 for word, score in zip(words, scores):
                     events[topic_id]['keywords'][word] = score
