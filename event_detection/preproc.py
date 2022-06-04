@@ -56,7 +56,6 @@ class Preprocessor:
 
         # Wheter or not to tokenize detected named entities
         self.tokenize_ents = tokenize_ents
-
         self.workers = workers
 
         # Modify tokenizer infix patterns
@@ -77,7 +76,21 @@ class Preprocessor:
         if stop_words is not None:
             self.update_stopwords(stop_words)
 
-        self.nlp.add_pipe('merge_entities', last=True)
+        if not tokenize_ents:
+            self.nlp.add_pipe('merge_entities', last=True)
+
+    def filter_tokens(self, docs: Iterable[Doc]) -> Iterable[tuple[Doc, str]]:
+        for doc in docs:
+            tokens = []
+
+            for token in doc:
+                if not (token.is_stop or token.is_punct or token.like_email
+                        or token.like_url or token.is_space
+                        or token.is_currency or token.like_num or
+                        token.lemma_.lower() in self.nlp.Defaults.stop_words):
+                    tokens.append(token.lemma_.lower())
+
+            yield (doc, ' '.join(tokens))
 
     def update_stopwords(self, stop_words: Iterable[str]) -> None:
         """

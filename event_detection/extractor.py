@@ -32,7 +32,9 @@ class EventExtractor:
                        reduce_topics: Optional[bool] = False) -> List[dict]:
         frame = map(lambda x: x['text'], documents)
         doc_iter, _ = self.preproc.preprocess_texts(frame)
-        texts = list(map(str, doc_iter))
+
+        filtered = self.preproc.filter_tokens(doc_iter)
+        texts = list(map(lambda x: x[1], filtered))
 
         model = Top2VecW(documents=texts,
                          embedding_model=self.embedding_model,
@@ -41,12 +43,11 @@ class EventExtractor:
                          tokenizer=self.tokenizer)
         events = []
 
+        sizes, _ = model.__model__.get_topic_sizes()
+
         for j in range(model.__model__.get_num_topics()):
             scores, ids = model.__model__.search_documents_by_topic(
-                topic_num=j, num_docs=max_docs)
-
-            # scores = result[0]
-            # ids = result[1]
+                topic_num=j, num_docs=sizes[j])
 
             events.append({
                 'date': None,
@@ -58,19 +59,17 @@ class EventExtractor:
             for score, doc_id in zip(scores, ids):
                 events[j]['doc_ids'][doc_id] = {
                     'score': score,
-                    'text': documents[j]['text']
+                    'text': documents[doc_id]['text']
                 }
 
-            topics = model.get_topics(max_topics)
-            topics, t_copy, t_copy1 = tee(topics, 3)
+        topic_words, topic_scores, nums = model.__model__.get_topics(
+            max_topics)
 
-            ids = map(lambda x: x[0], topics)
-            topic_words = map(lambda x: x[1][0], t_copy)
-            topic_scores = map(lambda x: x[1][1], t_copy1)
+        for topic_id in nums:
+            print(f'topic_id is {topic_id}')
 
-            for topic_id in ids:
-                for words, scores in zip(topic_words, topic_scores):
-                    for word, score in zip(words, scores):
-                        events[topic_id]['keywords'][word] = score
+            for words, scores in zip(topic_words, topic_scores):
+                for word, score in zip(words, scores):
+                    events[topic_id]['keywords'][word] = score
 
         return events

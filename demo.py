@@ -32,15 +32,17 @@ dataset = CsvDataset(DATASET_PATH)
 preprocessor = Preprocessor(language=LangEnum.RU, tokenize_ents=False)
 
 time_format = "%Y-%m-%d %H:%M:%S"
-ds_generator = dataset(time_window=dt.timedelta(days=2),
-                       time_col="date",
-                       columns=['title', 'id', 'text', 'date'],
-                       time_format=time_format,
-                       max_size=1000,
-                       filter_func=partial(filter_func,
-                                           dt_col='date',
-                                           time_format=time_format,
-                                           year=2015))
+ds_generator = dataset(
+    time_window=dt.timedelta(days=3),
+    time_col="date",
+    columns=['title', 'id', 'text', 'date'],
+    time_format=time_format,
+    # max_size=1000,
+    # filter_func=partial(filter_func,
+    #                     dt_col='date',
+    #                     time_format=time_format,
+    #                     year=2015))
+)
 
 extractor = EventExtractor(embedding_model='doc2vec')
 
