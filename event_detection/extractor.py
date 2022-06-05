@@ -91,9 +91,9 @@ class EventExtractor:
             max_topics)
 
         for topic_id in nums:
-            for words, scores in zip(topic_words, topic_scores):
-                for word, score in zip(words[topic_id], scores[topic_id]):
-                    events[topic_id]['keywords'].append(str(word))
-                    events[topic_id]['kw_scores'].append(float(score))
+            for word, score in zip(topic_words[topic_id],
+                                   topic_scores[topic_id]):
+                events[topic_id]['keywords'].append(str(word))
+                events[topic_id]['kw_scores'].append(float(score))
 
         return events
