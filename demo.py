@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
-import csv
+import os
 import gc
 import sys
 import datetime as dt
 
-from functools import partial
 from event_detection.dataset import CsvDataset
 from event_detection.preproc import Preprocessor, LangEnum
 from event_detection.extractor import EventExtractor
-from pprint import pprint
 from tqdm.notebook import tqdm
 
 if len(sys.argv) != 3:
@@ -18,10 +16,6 @@ if len(sys.argv) != 3:
 
 DATASET_PATH = sys.argv[1]
 OUTPUT_PATH = sys.argv[2]
-
-
-def crutch_for_top2vec(doc):
-    return doc.split()
 
 
 def filter_func(x: dict, dt_col: str, time_format: str, year: int) -> bool:
@@ -47,22 +41,57 @@ ds_generator = dataset(
 
 extractor = EventExtractor(embedding_model='doc2vec')
 
+DB_HOST = os.environ.get('DB_HOST')
+DB_PORT = os.environ.get('DB_PORT')
+DB_USER = os.environ.get('DB_USER')
+DB_PASSWORD = os.environ.get('DB_PASSWORD')
+DB_NAME = os.environ.get('DB_NAME')
+
+DB_URL = "http://{user}:{password}@{host}:{port}/{name}"
+
 with open(OUTPUT_PATH, 'w') as of:
-    writer = csv.writer(of)
+    # writer = csv.writer(of)
     # writer.writerow(['batch_id', 'refdoc_id', 'text', 'date'])
+    # writer.writerow(['batch_id', 'text', 'date'])
+
+    of.write("[\n")
 
     for i, batch in tqdm(enumerate(ds_generator)):
         gc.collect()
 
-        for doc in batch:
-            doc['text'] = doc['title'] + '. ' + doc['text']
-            doc.pop('title', None)
+        # for doc in batch:
+        #     doc['text'] = doc['title'] + '. ' + doc['text']
+        #     doc.pop('title', None)
 
-        try:
-            events = extractor.extract_events(batch, num_workers=6)
-            pprint(events)
+        events = extractor.extract_events(batch, num_workers=3)
+        import json
+        end = ""
+        for event in events:
+            if event['doc_scores'][0] > 0.8 and \
+                    event['kw_scores'][0] > 0.8:
+                if len(end) > 0:
+                    of.write(end)
 
-        except Exception as e:
-            print(f'Failed to get topics: {e}, len(batch) = {len(batch)}',
-                  file=sys.stderr)
-            continue
+                of.write(json.dumps(event))
+                end = ",\n"
+
+    of.write("\n]")
+    # writer.writerow(
+    #             (i, batch[event['doc_ids'][0]]['title'], event['date']))
+    # payload = event
+
+    # req = requests.post(DB_URL.format(user=DB_USER,
+    #                                   password=DB_PASSWORD,
+    #                                   host=DB_HOST,
+    #                                   port=DB_PORT,
+    #                                   name=DB_NAME),
+    #                     json=payload)
+    # pprint(events)
+    # try:
+    #     events = extractor.extract_events(batch, num_workers=6)
+    #     pprint(events)
+
+    # except Exception as e:
+    #     print(f'Failed to get topics: {e}, len(batch) = {len(batch)}',
+    #           file=sys.stderr)
+    #     continue
