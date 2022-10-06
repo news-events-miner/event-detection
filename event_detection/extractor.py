@@ -52,7 +52,7 @@ class EventExtractor:
         frame = map(lambda x: x['text'], documents)
         doc_iter, _ = self.preproc.preprocess_texts(frame)
 
-        filtered = self.preproc.filter_tokens(doc_iter)
+        filtered = list(self.preproc.filter_tokens(doc_iter))
         texts = list(map(lambda x: x[1], filtered))
 
         model = Top2VecW(documents=texts,
@@ -78,14 +78,24 @@ class EventExtractor:
                 'kw_scores': [],
             })
 
+            places = {}
+
             first = True
             for score, doc_id in zip(scores, ids):
                 if first:
                     first = False
                     events[j]['date'] = documents[doc_id]['date']
+                for ent in filtered[doc_id][0].ents:
+                    # 384 == GPE
+                    if ent.label == 385:
+                        places[ent.lemma_] = places.get(ent.lemma_, 0) + 1
                 events[j]['doc_ids'].append(int(doc_id))
                 events[j]['doc_scores'].append(float(score))
                 events[j]['doc_texts'].append(str(documents[doc_id]['text']))
+
+            place = sorted(places, key=places.get, reverse=True)
+            if len(place) > 0:
+                events[j]['place'] = place[0]
 
         topic_words, topic_scores, nums = model.__model__.get_topics(
             max_topics)

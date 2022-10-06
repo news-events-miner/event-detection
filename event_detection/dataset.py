@@ -73,4 +73,5 @@ class CsvDataset:
 
         if len(batch) > 0 and not drop_last:
             yield batch
-        raise StopIteration
+        # else:
+        #     raise StopIteration

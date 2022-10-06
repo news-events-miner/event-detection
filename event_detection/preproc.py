@@ -114,7 +114,7 @@ class Preprocessor:
         docs = self.__get_preprocessed_docs__(data)
         docs, docs_iter_copy = tee(docs)
         return docs, Dictionary(
-            map(lambda x: [y.text for y in x], docs_iter_copy))
+            map(lambda x: [y.lemma_ for y in x], docs_iter_copy))
 
     def __get_preprocessed_docs__(self, data: Iterable[str]):
         """
